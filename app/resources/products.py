@@ -8,6 +8,7 @@ from app.models import Product, Supplier
 from app.schemas import product_schema, products_schema, product_stock_schema
 from datetime import date, datetime
 import uuid
+import json
 
 
 class ProductListResource(Resource):
@@ -92,7 +93,7 @@ class ProductListResource(Resource):
             min_stock=data.get('min_stock', 10),
             base_unit=data.get('base_unit', 'piece'),
             sell_units=data.get('sell_units', ['piece']),
-            conversion_factors=data.get('conversion_factors', {'piece': 1}),
+            conversion_factors=json.dumps(data.get('conversion_factors', {'piece': 1})),
             supplier_id=data.get('supplier_id'),
             store_id=data.get('store_id'),
             status=data.get('status', 'active'),

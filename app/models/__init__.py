@@ -3,6 +3,22 @@
 from app import db
 from datetime import datetime, date
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+import json
+
+
+class MutableList(db.TypeDecorator):
+    """Mutable list type that works with both PostgreSQL and SQLite."""
+    impl = db.Text
+    
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return json.dumps(value)
+    
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return json.loads(value)
 
 
 class User(db.Model):
@@ -32,10 +48,10 @@ class User(db.Model):
     # Company account features
     is_company_account = db.Column(db.Boolean, default=False)
     company_id = db.Column(db.String(100), index=True)
-    allowed_roles = db.Column(ARRAY(db.String(50)))
+    allowed_roles = db.Column(MutableList, default=list)
     
     # Store associations
-    stores = db.Column(ARRAY(db.Integer), default=list)
+    stores = db.Column(MutableList, default=list)
     
     # Verification
     verified = db.Column(db.Boolean, default=False)
@@ -164,10 +180,10 @@ class Product(db.Model):
     stock = db.Column(db.Integer, default=0)
     min_stock = db.Column(db.Integer, default=10)
     
-    # Units
+    # Units - using MutableList for cross-database compatibility
     base_unit = db.Column(db.String(20), default='piece')
-    sell_units = db.Column(ARRAY(db.String(20)), default=list)
-    conversion_factors = db.Column(JSONB)
+    sell_units = db.Column(MutableList, default=list)
+    conversion_factors = db.Column(db.Text)  # Store as JSON string
     
     # Foreign keys
     supplier_id = db.Column(db.Integer, db.ForeignKey('suppliers.id'), index=True)
@@ -189,6 +205,14 @@ class Product(db.Model):
     
     def to_dict(self):
         """Convert product to dictionary."""
+        # Parse conversion_factors if string
+        cf = self.conversion_factors
+        if isinstance(cf, str):
+            try:
+                cf = json.loads(cf)
+            except (json.JSONDecodeError, TypeError):
+                cf = {}
+        
         return {
             'id': self.id,
             'name': self.name,
@@ -202,8 +226,8 @@ class Product(db.Model):
             'stock': self.stock,
             'min_stock': self.min_stock,
             'base_unit': self.base_unit,
-            'sell_units': self.sell_units,
-            'conversion_factors': self.conversion_factors,
+            'sell_units': self.sell_units or [],
+            'conversion_factors': cf,
             'supplier_id': self.supplier_id,
             'store_id': self.store_id,
             'status': self.status,
